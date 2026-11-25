@@ -195,6 +195,48 @@ input::placeholder { color: var(--muted); }
 .form-error { color: #a0241b; font-size: .82rem; }
 
 @media (max-width: 1448px) { .workspace { margin-inline: 24px; } }
+@media (min-width: 901px) {
+  .workspace {
+    max-width: none;
+    min-height: calc(100svh - 24px);
+    margin: 12px 16px;
+    padding: 20px;
+    font-size: 1rem;
+  }
+  .workspace-body { grid-template-columns: 160px minmax(0, 1fr); gap: 22px; padding-top: 20px; }
+  .app-header { padding-bottom: 16px; }
+  .main-nav button { font-size: .9rem; padding: 12px; min-height: 44px; }
+  .mode-switch button, .account-name { font-size: .875rem; }
+  .page-heading { margin-bottom: 20px; }
+  .page-heading h1 { font-size: 2.25rem; }
+  .page-heading p { font-size: .94rem; }
+  .workspace-content h2 { font-size: 1.125rem; }
+  .workspace-content .primary { min-height: 44px; padding-inline: 18px; }
+
+  .overview-grid, .overview-bottom, .detail-grid, .panel-stack { gap: 18px; }
+  .overview-bottom { margin-top: 18px; }
+  .panel, .balance-panel { padding: 20px; }
+  .balance-panel { container-type: inline-size; }
+  .balance-number { font-size: clamp(2rem, 14cqi, 3.375rem); }
+  .balance-panel > p, .balance-link { font-size: .875rem; }
+  .balance-accounts { margin-block: 13px; }
+  .account-row, .due-row { padding-block: 10px; }
+  .account-row strong, .account-row b, .due-row strong, .due-row b { font-size: .9375rem; }
+
+  .metric-grid { gap: 10px; }
+  .metric-card { container-type: inline-size; padding: 15px; }
+  .metric-card h2 { font-size: .875rem; }
+  .metric-card strong { font-size: clamp(1.125rem, 14.5cqi, 1.75rem); }
+  .metric-card p, .chart-legend, .chart-month > span, .chart-axis { font-size: .8125rem; }
+  .activity-table { font-size: .875rem; }
+  .activity-table th, .activity-table td { padding: 10px; }
+  .activity-table tbody small, .entry-status, .panel-head select, .search-field input { font-size: .8125rem; }
+  .search-field input { width: 168px; }
+  .credit-card { min-height: 142px; padding: 15px; }
+  .credit-card h3 { font-size: 1rem; }
+  .credit-card p, .credit-limit, .text-button { font-size: .875rem; }
+  .empty p, .empty strong, .expense-form label, .category-form label { font-size: .9rem; }
+}
 @media (max-width: 1120px) {
   .workspace-body { grid-template-columns: 1fr; gap: 13px; }
   .main-nav { flex-direction: row; justify-self: start; }

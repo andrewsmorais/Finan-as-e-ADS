@@ -142,7 +142,7 @@ O título da página usa a escala `headline`, com redução para `1.7rem` no cel
 
 ## Layout
 
-A área de trabalho tem largura máxima de `1400px`. No desktop, a navegação de `142px` fica à esquerda e o painel inicial distribui saldo, indicadores e gráfico em três colunas. Na segunda linha, a atividade recebe cerca de dois terços da largura e os cartões ocupam o restante.
+A partir de `901px`, a área de trabalho ocupa a largura disponível, com margens laterais de `16px` e tipografia ampliada. O saldo vai de `2rem` a `3.375rem`, e os valores se ajustam à largura do próprio painel. No desktop, a navegação de `160px` fica à esquerda e o painel inicial distribui saldo, indicadores e gráfico em três colunas. Na segunda linha, a atividade recebe cerca de dois terços da largura e os cartões ocupam o restante.
 
 - Até `1120px`, a navegação muda para uma faixa acima do conteúdo.
 - Até `900px`, o gráfico ocupa a largura inteira abaixo do saldo e dos indicadores. Atividade e cartões passam a ocupar linhas independentes.
