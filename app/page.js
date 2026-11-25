@@ -56,29 +56,32 @@ function Login({ onSession }) {
 }
 
 function Dashboard({ session, onLogout }) {
-  const [section, setSection] = useState("resumo");
+  const [section, setSection] = useState("financeiro");
   const [accounts, setAccounts] = useState([]);
   const [cards, setCards] = useState([]);
   const [recurring, setRecurring] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [manualEntries, setManualEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [categoryName, setCategoryName] = useState("");
   const [categoryKind, setCategoryKind] = useState("expense");
   const [recurringForm, setRecurringForm] = useState({ name: "", expected_amount: "", category_id: "", frequency: "monthly", start_date: new Date().toISOString().slice(0, 10), end_date: "" });
+  const [expenseForm, setExpenseForm] = useState({ description: "", amount: "", category_id: "", expense_group: "subscription", due_date: new Date().toISOString().slice(0, 10) });
 
   async function loadData() {
     if (!supabase) return;
     setLoading(true);
-    const [profileResult, accountsResult, cardsResult, recurringResult, categoriesResult] = await Promise.all([
+    const [profileResult, accountsResult, cardsResult, recurringResult, categoriesResult, entriesResult] = await Promise.all([
       supabase.from("profiles").select("user_id").eq("user_id", session.user.id).maybeSingle(),
       supabase.from("financial_accounts").select("id,name,account_type,balance_kind,current_balance,available_balance").order("name"),
       supabase.from("cards").select("id,name,brand,last4,credit_limit,available_credit,closing_day,due_day").order("name"),
       supabase.from("recurring_expenses").select("id,name,expected_amount,frequency,start_date,end_date,next_due_date,is_active,category_id").eq("is_active", true).order("next_due_date", { ascending: true }),
-      supabase.from("categories").select("id,name,kind").order("name")
+      supabase.from("categories").select("id,name,kind").order("name"),
+      supabase.from("manual_entries").select("id,description,amount,entry_type,expense_group,due_date,paid_at,is_paid,category_id").order("due_date", { ascending: true })
     ]);
     if (!profileResult.data) await supabase.from("profiles").upsert({ user_id: session.user.id, timezone: "America/Sao_Paulo" });
-    setAccounts(accountsResult.data || []); setCards(cardsResult.data || []); setRecurring(recurringResult.data || []); setCategories(categoriesResult.data || []);
+    setAccounts(accountsResult.data || []); setCards(cardsResult.data || []); setRecurring(recurringResult.data || []); setCategories(categoriesResult.data || []); setManualEntries(entriesResult.data || []);
     setLoading(false);
   }
 
@@ -87,6 +90,9 @@ function Dashboard({ session, onLogout }) {
   const cashAccounts = useMemo(() => accounts.filter((item) => item.balance_kind === "cash"), [accounts]);
   const totalCash = cashAccounts.reduce((sum, item) => sum + Number(item.available_balance ?? item.current_balance ?? 0), 0);
   const activeExpenses = recurring.reduce((sum, item) => sum + Number(item.expected_amount || 0), 0);
+  const expensesPaid = manualEntries.filter((item) => item.entry_type === "expense" && item.is_paid).reduce((sum, item) => sum + Number(item.amount), 0);
+  const expensesDue = manualEntries.filter((item) => item.entry_type === "expense" && !item.is_paid).reduce((sum, item) => sum + Number(item.amount), 0);
+  const incomeDue = manualEntries.filter((item) => item.entry_type === "income" && !item.is_paid).reduce((sum, item) => sum + Number(item.amount), 0);
 
   async function addCategory(event) {
     event.preventDefault();
@@ -104,28 +110,52 @@ function Dashboard({ session, onLogout }) {
     setNotice("Despesa recorrente registrada."); setRecurringForm((current) => ({ ...current, name: "", expected_amount: "", end_date: "" })); loadData();
   }
 
-  const nav = [["resumo", "Resumo"], ["contas", "Contas"], ["cartoes", "Cartões"], ["recorrentes", "Recorrentes"], ["ads", "ADS"]];
+  async function addExpense(event) {
+    event.preventDefault();
+    const payload = { ...expenseForm, user_id: session.user.id, entry_type: "expense", amount: Number(expenseForm.amount || 0), category_id: expenseForm.category_id || null };
+    const { error } = await supabase.from("manual_entries").insert(payload);
+    if (error) return setNotice("Confira os dados da despesa e tente novamente.");
+    setNotice("Despesa adicionada ao seu planejamento.");
+    setExpenseForm((current) => ({ ...current, description: "", amount: "" }));
+    loadData();
+  }
+
+  async function markAsPaid(entry) {
+    const { error } = await supabase.from("manual_entries").update({ is_paid: true, paid_at: new Date().toISOString() }).eq("id", entry.id);
+    if (error) return setNotice("Não foi possível atualizar este lançamento.");
+    setNotice("Despesa marcada como paga."); loadData();
+  }
+
+  const nav = [["financeiro", "Dashboard"], ["contas", "Contas"], ["despesas", "Despesas"], ["cartoes", "Cartões"]];
+  const expenseTypes = [
+    ["subscription", "Assinaturas", "Netflix, internet, streaming e serviços"],
+    ["financing", "Financiamento", "Carro, moto ou bem parcelado"],
+    ["loan", "Empréstimo", "Parcelas, acordos e empréstimos"],
+    ["card", "Cartão", "Fatura ou compra no cartão"],
+    ["other", "Nova despesa", "Outro gasto que você queira planejar"]
+  ];
+  const cardCategoryExamples = ["Abastecimento", "Mercado", "Restaurantes", "Shopee e Mercado Livre", "Streaming", "Transporte", "Saúde", "Outros"];
   return <main className="app-shell">
     <aside className="sidebar">
-      <div className="brand compact"><span>F</span> Finanças <i>&</i> ADS</div>
+      <button className="brand compact brand-button" onClick={() => setSection("financeiro")}><span>F</span> Finanças</button>
       <nav>{nav.map(([id, label]) => <button key={id} onClick={() => setSection(id)} className={section === id ? "active" : ""}><span className="nav-dot" />{label}</button>)}</nav>
-      <div className="sidebar-foot"><p>Dados financeiros</p><span>Somente visualização</span><button className="logout" onClick={onLogout}>Sair</button></div>
+      <div className="sidebar-foot"><button className="mode-ads" onClick={() => setSection("ads")}>ADS <span>↗</span></button><p>Dados financeiros</p><span>Visão integrada e lançamentos pessoais.</span><button className="logout" onClick={onLogout}>Sair</button></div>
     </aside>
     <div className="content">
-      <header className="topbar"><div><p className="eyebrow">PAINEL PESSOAL</p><h1>{section === "ads" ? "Central de ADS" : "Visão financeira"}</h1></div><div className="account-chip"><span>{session.user.email?.slice(0, 1).toUpperCase()}</span><p>{session.user.email}</p></div></header>
+      <header className="topbar"><div><p className="eyebrow">PAINEL PESSOAL</p><h1>{section === "ads" ? "Central de ADS" : section === "despesas" ? "Despesas" : section === "cartoes" ? "Cartões e categorias" : "Finanças"}</h1></div><div className="right-tools"><div className="mode-switch"><button className={section === "ads" ? "" : "selected"} onClick={() => setSection("financeiro")}>Finanças</button><button className={section === "ads" ? "selected" : ""} onClick={() => setSection("ads")}>ADS</button></div><div className="account-chip"><span>{session.user.email?.slice(0, 1).toUpperCase()}</span><p>{session.user.email}</p></div></div></header>
       {notice && <div className="notice">{notice}<button onClick={() => setNotice("")}>×</button></div>}
       {loading ? <div className="loading">Atualizando o painel…</div> : <>
-        {section === "resumo" && <>
+        {section === "financeiro" && <>
           <section className="hero-row"><div><p className="eyebrow">SALDO DISPONÍVEL</p><h2>{money.format(totalCash)}</h2><span>Somente contas classificadas como saldo em dinheiro.</span></div><div className="filter-chip">Período: hoje <b>⌄</b></div></section>
-          <section className="metrics"><article><p>Contas conectadas</p><strong>{accounts.length}</strong><span>Importadas pelo Pluggy quando a integração estiver ativa.</span></article><article><p>Cartões visíveis</p><strong>{cards.length}</strong><span>Limites e faturas serão somente leitura.</span></article><article><p>Recorrências mensais</p><strong>{money.format(activeExpenses)}</strong><span>Estimativa das despesas ativas cadastradas.</span></article></section>
-          <section className="two-col"><article className="panel"><div className="panel-head"><div><p className="eyebrow">SUAS CONTAS</p><h3>Saldo por instituição</h3></div><button onClick={() => setSection("contas")}>Ver todas</button></div>{accounts.length ? <div className="list">{accounts.slice(0, 5).map((item) => <div key={item.id} className="account-row"><span className="institution">{item.name.slice(0, 1)}</span><div><strong>{item.name}</strong><small>{item.account_type} · {item.balance_kind}</small></div><b>{money.format(Number(item.available_balance ?? item.current_balance ?? 0))}</b></div>)}</div> : <Empty title="Nenhuma conta sincronizada ainda" detail="Quando a integração Pluggy estiver conectada ao aplicativo, as contas aparecerão aqui." />}</article>
-          <article className="panel ads-pulse"><div className="panel-head"><div><p className="eyebrow">MODO ADS</p><h3>Pronto para conectar</h3></div><span className="status">Em preparo</span></div><p>Meta, Google, Cakto e Kiwify entram neste painel depois da etapa segura de credenciais no servidor.</p><button className="secondary" onClick={() => setSection("ads")}>Ver plano de ADS</button></article></section>
+          <section className="metrics four"><article><p>Contas conectadas</p><strong>{accounts.length}</strong><span>Contas e carteiras sincronizadas.</span></article><article><p>Contas a receber</p><strong>{money.format(incomeDue)}</strong><span>Receitas pendentes de entrada.</span></article><article><p>Despesas pagas</p><strong>{money.format(expensesPaid)}</strong><span>Despesas manuais já baixadas.</span></article><article><p>Despesas a vencer</p><strong>{money.format(expensesDue + activeExpenses)}</strong><span>Planejadas e recorrências ativas.</span></article></section>
+          <section className="two-col"><article className="panel"><div className="panel-head"><div><p className="eyebrow">SUAS CONTAS</p><h3>Saldo por instituição</h3></div><button onClick={() => setSection("contas")}>Ver contas</button></div>{accounts.length ? <div className="list">{accounts.slice(0, 5).map((item) => <div key={item.id} className="account-row"><span className="institution">{item.name.slice(0, 1)}</span><div><strong>{item.name}</strong><small>{item.account_type} · {item.balance_kind}</small></div><b>{money.format(Number(item.available_balance ?? item.current_balance ?? 0))}</b></div>)}</div> : <Empty title="Nenhuma conta sincronizada ainda" detail="Quando a integração Pluggy estiver conectada ao aplicativo, as contas aparecerão aqui." />}</article>
+          <article className="panel"><div className="panel-head"><div><p className="eyebrow">PRÓXIMAS DESPESAS</p><h3>Contas a pagar</h3></div><button onClick={() => setSection("despesas")}>Adicionar</button></div>{manualEntries.filter((item) => !item.is_paid && item.entry_type === "expense").slice(0, 4).map((item) => <div className="recurring-row" key={item.id}><div><strong>{item.description}</strong><small>Vence em {dateFormatter.format(new Date(`${item.due_date}T12:00:00`))}</small></div><b>{money.format(Number(item.amount))}</b></div>) || <Empty title="Sem despesas próximas" detail="Cadastre assinaturas, financiamento e outras despesas." />}</article></section>
         </>}
         {section === "contas" && <section className="panel full"><div className="panel-head"><div><p className="eyebrow">FILTROS</p><h2>Contas e saldos</h2></div><div className="filter-chip">Todas as contas <b>⌄</b></div></div><p className="muted">O filtro por período será alimentado pelo histórico de saldos sincronizado.</p>{accounts.length ? <div className="list">{accounts.map((item) => <div key={item.id} className="account-row"><span className="institution">{item.name.slice(0, 1)}</span><div><strong>{item.name}</strong><small>{item.account_type} · {item.balance_kind}</small></div><b>{money.format(Number(item.available_balance ?? item.current_balance ?? 0))}</b></div>)}</div> : <Empty title="Aguardando integração bancária" detail="Seu banco já está autorizado no Pluggy; agora falta conectar o Pluggy ao aplicativo com a chave privada no servidor." />}</section>}
-        {section === "cartoes" && <section className="panel full"><div className="panel-head"><div><p className="eyebrow">CRÉDITO</p><h2>Cartões</h2></div></div>{cards.length ? <div className="cards-grid">{cards.map((card) => <article key={card.id} className="credit-card"><small>{card.brand || "Cartão"}</small><h3>{card.name}</h3><p>•••• {card.last4 || "----"}</p><div><span>Disponível</span><b>{money.format(Number(card.available_credit || 0))}</b></div></article>)}</div> : <Empty title="Nenhum cartão importado" detail="Cartões aparecerão aqui depois da sincronização da conta de crédito conectada." />}</section>}
-        {section === "recorrentes" && <section className="recurring-layout"><article className="panel"><div className="panel-head"><div><p className="eyebrow">PLANEJAMENTO</p><h2>Despesas recorrentes</h2></div></div>{recurring.length ? <div className="list">{recurring.map((item) => <div className="recurring-row" key={item.id}><div><strong>{item.name}</strong><small>{item.frequency === "monthly" ? "Mensal" : item.frequency === "weekly" ? "Semanal" : "Anual"} · começa em {dateFormatter.format(new Date(`${item.start_date}T12:00:00`))}{item.end_date ? ` · termina em ${dateFormatter.format(new Date(`${item.end_date}T12:00:00`))}` : " · sem data final"}</small></div><b>{money.format(Number(item.expected_amount || 0))}</b></div>)}</div> : <Empty title="Nenhuma recorrência cadastrada" detail="Cadastre financiamento, internet, assinaturas e outras despesas para acompanhá-las aqui." />}</article>
-          <aside className="panel form-panel"><p className="eyebrow">NOVO LANÇAMENTO</p><h3>Adicionar recorrência</h3><form onSubmit={addRecurring}><label>Nome<input value={recurringForm.name} onChange={(e) => setRecurringForm({ ...recurringForm, name: e.target.value })} required placeholder="Ex.: Financiamento do carro" /></label><label>Valor previsto<input type="number" min="0" step="0.01" value={recurringForm.expected_amount} onChange={(e) => setRecurringForm({ ...recurringForm, expected_amount: e.target.value })} required placeholder="0,00" /></label><label>Categoria<select value={recurringForm.category_id} onChange={(e) => setRecurringForm({ ...recurringForm, category_id: e.target.value })}><option value="">Sem categoria</option>{categories.filter((c) => c.kind === "expense").map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><label>Data de início<input type="date" value={recurringForm.start_date} onChange={(e) => setRecurringForm({ ...recurringForm, start_date: e.target.value })} required /></label><label>Data final <em>opcional</em><input type="date" value={recurringForm.end_date} min={recurringForm.start_date} onChange={(e) => setRecurringForm({ ...recurringForm, end_date: e.target.value })} /></label><button className="primary">Salvar recorrência</button></form></aside>
-          <aside className="panel form-panel category-panel"><p className="eyebrow">ORGANIZAÇÃO</p><h3>Nova categoria</h3><form onSubmit={addCategory}><label>Nome<input value={categoryName} onChange={(e) => setCategoryName(e.target.value)} required placeholder="Ex.: Carro" /></label><label>Tipo<select value={categoryKind} onChange={(e) => setCategoryKind(e.target.value)}><option value="expense">Despesa</option><option value="income">Receita</option><option value="transfer">Transferência</option></select></label><button className="secondary">Criar categoria</button></form></aside></section>}
+        {section === "despesas" && <section className="expenses-layout"><article className="panel expense-types"><div className="panel-head"><div><p className="eyebrow">LANÇAR DESPESA</p><h2>Como quer organizar?</h2></div></div><div className="expense-type-grid">{expenseTypes.map(([id, title, detail]) => <button key={id} className={expenseForm.expense_group === id ? "chosen" : ""} onClick={() => setExpenseForm({ ...expenseForm, expense_group: id })}><strong>{title}</strong><span>{detail}</span></button>)}</div><form className="expense-form" onSubmit={addExpense}><label>Descrição<input required value={expenseForm.description} onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })} placeholder="Ex.: Netflix, financiamento do carro" /></label><label>Valor<input required type="number" min="0.01" step="0.01" value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} placeholder="0,00" /></label><label>Vencimento<input required type="date" value={expenseForm.due_date} onChange={(e) => setExpenseForm({ ...expenseForm, due_date: e.target.value })} /></label><label>Categoria<select value={expenseForm.category_id} onChange={(e) => setExpenseForm({ ...expenseForm, category_id: e.target.value })}><option value="">Sem categoria</option>{categories.filter((c) => c.kind === "expense").map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label><button className="primary">Adicionar despesa</button></form></article>
+          <aside className="panel"><p className="eyebrow">A PAGAR</p><h3>Próximos lançamentos</h3>{manualEntries.filter((item) => item.entry_type === "expense" && !item.is_paid).length ? <div className="list">{manualEntries.filter((item) => item.entry_type === "expense" && !item.is_paid).map((item) => <div className="recurring-row" key={item.id}><div><strong>{item.description}</strong><small>Vencimento {dateFormatter.format(new Date(`${item.due_date}T12:00:00`))}</small></div><b>{money.format(Number(item.amount))}</b><button className="mini-button" onClick={() => markAsPaid(item)}>Paguei</button></div>)}</div> : <Empty title="Tudo em dia" detail="Novas despesas aparecerão aqui." />}</aside>
+          <aside className="panel form-panel category-panel"><p className="eyebrow">ORGANIZAÇÃO</p><h3>Criar categoria</h3><form onSubmit={addCategory}><label>Nome<input value={categoryName} onChange={(e) => setCategoryName(e.target.value)} required placeholder="Ex.: Carro" /></label><label>Tipo<select value={categoryKind} onChange={(e) => setCategoryKind(e.target.value)}><option value="expense">Despesa</option><option value="income">Receita</option><option value="transfer">Transferência</option></select></label><button className="secondary">Criar categoria</button></form></aside></section>}
+        {section === "cartoes" && <section className="cards-page"><article className="panel full"><div className="panel-head"><div><p className="eyebrow">CRÉDITO</p><h2>Seus cartões</h2></div></div>{cards.length ? <div className="cards-grid">{cards.map((card) => <article key={card.id} className="credit-card"><small>{card.brand || "Cartão"}</small><h3>{card.name}</h3><p>•••• {card.last4 || "----"}</p><div><span>Disponível</span><b>{money.format(Number(card.available_credit || 0))}</b></div></article>)}</div> : <Empty title="Nenhum cartão importado" detail="Cartões aparecerão aqui depois da sincronização da conta de crédito conectada." />}</article><aside className="panel"><p className="eyebrow">CATEGORIAS DE COMPRA</p><h3>Organize seus gastos</h3><p className="muted">As categorias pessoais serão usadas para entender suas compras do cartão sem alterar dados da Nubank ou Itaú.</p><div className="category-chips">{[...cardCategoryExamples, ...categories.filter((item) => item.kind === "expense").map((item) => item.name)].map((name) => <span key={name}>{name}</span>)}</div><button className="secondary" onClick={() => setSection("despesas")}>Criar categoria</button></aside></section>}
         {section === "ads" && <section className="ads-board"><div className="ads-statement"><p className="eyebrow">FASE 1</p><h2>Dados confiáveis antes de escala.</h2><p>O modo ADS será o centro de leitura de Meta e Google Ads, vendas Cakto/Kiwify e lucro por campanha — com atribuição explícita, nunca inventada.</p></div><div className="ads-steps"><article><b>1</b><div><h3>Conectar fontes</h3><p>Meta, Google, Cakto e Kiwify via servidor.</p></div></article><article><b>2</b><div><h3>Normalizar dados</h3><p>Gastos, vendas, UTMs e taxas em uma só linha do tempo.</p></div></article><article><b>3</b><div><h3>Analisar lucro</h3><p>ROAS, CPA e receita atribuída com filtros claros.</p></div></article></div><div className="panel"><p className="eyebrow">STATUS ATUAL</p><h3>Integrações de ADS ainda não conectadas</h3><p>O banco já está pronto para receber esses dados; as chaves de cada plataforma ficarão somente no servidor quando iniciarmos essa etapa.</p></div></section>}
       </>}
     </div>
