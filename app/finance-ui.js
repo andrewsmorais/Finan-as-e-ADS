@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { AdsMode } from "./ads-mode";
+import "./ads.css";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const shortDate = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" });
@@ -266,31 +268,19 @@ const headings = {
   contas: ["Contas e saldos", "Acompanhe o saldo de cada instituição conectada."],
   despesas: ["Despesas", "Organize lançamentos e dê baixa nos pagamentos."],
   cartoes: ["Cartões", "Acompanhe seus cartões e organize categorias de compra."],
-  ads: ["Central de ADS", "Gastos, vendas e resultados de campanhas em um só lugar."],
 };
-
-function AdsPage() {
-  return (
-    <section className="panel ads-empty">
-      <Icon name="chart" size={26} />
-      <h2>Integrações pendentes</h2>
-      <p>Conecte as fontes para acompanhar gastos, vendas e receita atribuída por campanha.</p>
-      <div className="ads-sources">
-        {["Meta Ads", "Google Ads", "Cakto", "Kiwify"].map((source) => <div key={source}><strong>{source}</strong><span className="entry-status pending">Não conectado</span></div>)}
-      </div>
-    </section>
-  );
-}
 
 export function FinanceView({
   session, onLogout, section, onNavigate, accounts, cards, categories, manualEntries,
   totalCash, incomeDue, expensesPaid, expensesDue, loading, notice, onDismiss, ...expenseProps
 }) {
-  const [title, subtitle] = headings[section];
+  const [adsDark, setAdsDark] = useState(false);
+  const isAds = section === "ads";
+  const [title, subtitle] = headings[section] ?? [];
   const displayName = session.user.user_metadata?.name || session.user.user_metadata?.full_name || "Minha conta";
   const initial = (displayName === "Minha conta" ? session.user.email : displayName)?.charAt(0).toUpperCase() || "F";
   return (
-    <div className="workspace">
+    <div className="workspace" data-ads-theme={isAds && adsDark ? "dark" : undefined}>
       <a className="skip-link" href="#workspace-content">Ir para o conteúdo</a>
       <header className="app-header">
         <button className="brand-button" onClick={() => onNavigate("financeiro")}><Brand /></button>
@@ -306,6 +296,7 @@ export function FinanceView({
         </div>
       </header>
       <div className="workspace-body">
+        {isAds ? <AdsMode Icon={Icon} dark={adsDark} onToggleTheme={() => setAdsDark((current) => !current)} /> : <>
         <nav className="main-nav" aria-label="Navegação financeira">
           {sections.map(([id, label, icon]) => <button key={id} aria-current={section === id ? "page" : undefined} onClick={() => onNavigate(id)}><Icon name={icon} size={17} /><span>{label}</span></button>)}
         </nav>
@@ -335,9 +326,9 @@ export function FinanceView({
             {section === "contas" && <section className="panel section-panel"><h2>Instituições conectadas</h2>{accounts.length ? accounts.map((account) => <AccountRow key={account.id} account={account} />) : <Empty title="Nenhuma conta sincronizada" detail="Suas contas aparecem aqui quando a integração Pluggy estiver conectada ao aplicativo." />}</section>}
             {section === "despesas" && <ExpensePage entries={manualEntries} categories={categories} {...expenseProps} />}
             {section === "cartoes" && <div className="detail-grid"><section className="panel"><h2>Seus cartões</h2>{cards.length ? <div className="cards-grid">{cards.map((card) => <CreditCard key={card.id} card={card} />)}</div> : <Empty title="Nenhum cartão importado" detail="Cartões aparecem aqui depois da sincronização das contas de crédito." />}</section><aside className="panel"><h2>Categorias de compra</h2><div className="category-chips">{[...new Set([...cardCategories, ...categories.filter((item) => item.kind === "expense").map((item) => item.name)])].map((name) => <span key={name}>{name}</span>)}</div><button className="secondary" onClick={() => onNavigate("despesas")}>Criar categoria</button></aside></div>}
-            {section === "ads" && <AdsPage />}
           </>}
         </main>
+        </>}
       </div>
     </div>
   );
