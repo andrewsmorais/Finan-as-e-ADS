@@ -274,7 +274,7 @@ export function FinanceView({
   session, onLogout, section, onNavigate, accounts, cards, categories, manualEntries,
   totalCash, incomeDue, expensesPaid, expensesDue, loading, notice, onDismiss, ...expenseProps
 }) {
-  const [adsDark, setAdsDark] = useState(false);
+  const [adsDark, setAdsDark] = useState(true);
   const isAds = section === "ads";
   const [title, subtitle] = headings[section] ?? [];
   const displayName = session.user.user_metadata?.name || session.user.user_metadata?.full_name || "Minha conta";
@@ -296,7 +296,7 @@ export function FinanceView({
         </div>
       </header>
       <div className="workspace-body">
-        {isAds ? <AdsMode Icon={Icon} dark={adsDark} onToggleTheme={() => setAdsDark((current) => !current)} /> : <>
+        {isAds ? <AdsMode Icon={Icon} dark={adsDark} userId={session.user.id} onToggleTheme={() => setAdsDark((current) => !current)} /> : <>
         <nav className="main-nav" aria-label="Navegação financeira">
           {sections.map(([id, label, icon]) => <button key={id} aria-current={section === id ? "page" : undefined} onClick={() => onNavigate(id)}><Icon name={icon} size={17} /><span>{label}</span></button>)}
         </nav>

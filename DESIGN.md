@@ -134,6 +134,8 @@ O coral dá destaque ao saldo, à marca e à série **Recebido**. O pêssego abr
 
 O cinza externo emoldura a área de trabalho. O branco distingue painéis e controles, e o cinza suave agrupa etiquetas e cabeçalhos de tabela. Os estados financeiros combinam texto e ponto colorido, com verde para **Pago** ou **Recebido** e âmbar para **Pendente**.
 
+No modo ADS, a visualização padrão é escura. O fundo grafite e os painéis escuros sustentam o azul do faturamento, dos gráficos e da seleção de período. O verde identifica a distribuição dos pagamentos e as preferências de aviso.
+
 ## Typography
 
 Inter Variable foi escolhida pela proximidade visual com a referência. A família original da referência não foi identificada. A mesma pilha tipográfica atende à interface inteira. Use algarismos tabulares para valores e mantenha a formatação brasileira de moeda e datas.
